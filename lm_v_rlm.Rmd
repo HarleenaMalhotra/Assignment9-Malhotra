@@ -1,0 +1,71 @@
+---
+title: "lm_v_rlm"
+author: "Harleena Malhotra"
+date: "November 27, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(gapminder)
+library(modelr)
+library(tidyverse)
+library(purrr)
+library(MASS)
+library(broom)
+```
+
+```{r}
+gap_nested <- gapminder %>% mutate(log_gdpPercap = log10(gdpPercap))
+
+gap_nested <- gap_nested %>% 
+  group_by(continent, country) %>% nest()
+
+get_lm <- function(listx){
+  lm(lifeExp ~ log_gdpPercap, data = listx)
+}
+gap_nested <- gap_nested %>% 
+  mutate(lm_fit = map(data, get_lm))
+
+get_lmslope <- function(listz){
+  listz$coefficients[2]
+}
+gap_nested <- gap_nested %>% 
+  mutate(lm_slope = map(lm_fit, get_lmslope))
+
+
+
+
+get_rlm <- function(listx){
+  rlm(lifeExp ~ log_gdpPercap, data = listx)
+}
+gap_nested <- gap_nested %>% mutate(rlm_fit = map(data, get_rlm))
+
+get_rlmslope <- function(listz){
+  listz$coefficients[2]
+}
+gap_nested <- gap_nested %>% 
+  mutate(rlm_slope = map(rlm_fit, get_rlmslope))
+
+
+##Plot
+gap_nested$lm_slope <- as.numeric(gap_nested$lm_slope)
+gap_nested$rlm_slope <- as.numeric(gap_nested$rlm_slope)
+CompareDF <- gap_nested[,c("continent", "country", "lm_slope", "rlm_slope")]
+ggplot(CompareDF, aes(lm_slope, rlm_slope, color = continent)) + geom_point() 
+
+CompareDF$slope_diff <-abs(CompareDF$rlm_slope - CompareDF$lm_slope)
+CompareDF <- CompareDF %>% arrange(desc(slope_diff))
+head(CompareDF, 1)
+##Based on the comparison above, Senegal in Africa has the most variance between the lm slope and rlm slope. 
+
+gap_senegal <- gapminder %>% filter(country == "Senegal") %>% 
+  mutate(log_gdpPercap = log10(gdpPercap))
+ggplot(gap_senegal, aes(log_gdpPercap, lifeExp)) + geom_point() 
+
+```
+
+
